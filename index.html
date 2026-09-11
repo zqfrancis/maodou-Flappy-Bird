@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Flappy Bird - Choose Theme Style</title>
+    <title>Flappy Bird - 填字识字版</title>
     <style>
         * {
             box-sizing: border-box;
@@ -19,7 +19,7 @@
             margin: 0;
             padding: 0;
             background-color: #70C5CE;
-            font-family: 'Courier New', Courier, monospace;
+            font-family: 'Courier New', Courier, 'PingFang SC', 'Microsoft YaHei', sans-serif;
             overflow: hidden;
             position: fixed;
             top: 0;
@@ -87,21 +87,46 @@
         } catch(e) {}
     }
 
-    let selectedMode = null; // 'boy' 或 'girl'
+    let selectedMode = null; 
     let gameState = "SELECT"; 
     let score = 0;
     let bestScore = getSafeBestScore();
     let frames = 0;
     let isHolding = false;
-    let isMuted = false; // 静音状态变量
+    let isMuted = false;
+
+    // 血条与连对系统
+    let hp = 5;
+    const maxHp = 5;
+    let streak = 0; // 连续答对计数器
+
+    const chineseSentences = [
+        { text: "一心一__", answer: "意", distractors: ["忆", "异", "易"] },
+        { text: "画龙点__", answer: "睛", distractors: ["精", "晴", "晶"] },
+        { text: "守株待__", answer: "兔", distractors: ["土", "吐", "途"] },
+        { text: "三心二__", answer: "意", distractors: ["易", "忆", "益"] },
+        { text: "自相矛__", answer: "盾", distractors: ["顿", "钝", "敦"] },
+        { text: "井底之__", answer: "蛙", distractors: ["娃", "袜", "挖"] },
+        { text: "亡羊补__", answer: "牢", distractors: ["劳", "老", "姥"] },
+        { text: "掩耳盗__", answer: "铃", distractors: ["零", "领", "羚"] },
+        { text: "雪中送__", answer: "炭", distractors: ["探", "叹", "碳"] },
+        { text: "春风吹又__", answer: "生", distractors: ["声", "深", "升"] }
+    ];
+    let currentSentenceIndex = 0;
+    let currentTargetChar = "";
+    let currentDisplayPrompt = "";
+
+    function loadNextSentence() {
+        currentSentenceIndex = Math.floor(Math.random() * chineseSentences.length);
+        const item = chineseSentences[currentSentenceIndex];
+        currentTargetChar = item.answer;
+        currentDisplayPrompt = item.text;
+    }
 
     // 静音按钮区域
     let btnMuteRect = { x: 15, y: 15, w: 42, h: 42 };
 
-    // Boy 模式星空元素
     let stars = [];
-    
-    // Girl 模式背景装饰物（甜品与少量动物）
     let candies = [];
 
     function generateStars() {
@@ -120,22 +145,15 @@
 
     function generateCandies() {
         candies = [];
-        // 主要为糖果与马卡龙，大幅降低动物出现频率
         const colors = ['#FF70A6', '#FF9770', '#FFDC5E', '#A3E7FC', '#C8B6FF', '#B5EAD7'];
         for (let i = 0; i < 12; i++) {
             let typeRand = Math.random();
             let type = 'candy';
-            if (typeRand < 0.35) {
-                type = 'macaron'; // 马卡龙
-            } else if (typeRand < 0.60) {
-                type = 'lollipop'; // 棒棒糖
-            } else if (typeRand < 0.85) {
-                type = 'candy'; // 普通糖果
-            } else if (typeRand < 0.93) {
-                type = 'bunny'; // 小兔子（低概率）
-            } else {
-                type = 'unicorn'; // 独角兽（低概率）
-            }
+            if (typeRand < 0.35) type = 'macaron';
+            else if (typeRand < 0.60) type = 'lollipop';
+            else if (typeRand < 0.85) type = 'candy';
+            else if (typeRand < 0.93) type = 'bunny';
+            else type = 'unicorn';
 
             candies.push({
                 x: Math.random() * (canvas.width || 300),
@@ -154,26 +172,21 @@
         return hour >= 6 && hour < 18;
     }
 
-    // 绘制马卡龙
     function drawMacaron(size, color) {
         ctx.fillStyle = color;
-        // 上层外壳
         ctx.beginPath();
-        ctx.ellipse(0, -size * 0.25, size, size * 0.55, 0, Math.PI, 0);
+        ctx.ellipse(0, -size * 0.25, size, size * 0.55, 0, Math.PI, 0, true);
         ctx.fill();
 
-        // 奶油夹心层
         ctx.fillStyle = "#FFFFFF";
         ctx.fillRect(-size * 0.9, -size * 0.25, size * 1.8, size * 0.3);
 
-        // 下层外壳
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.ellipse(0, 0.05 * size, size, size * 0.55, 0, 0, Math.PI);
+        ctx.ellipse(0, 0.05 * size, size, size * 0.55, 0, 0, Math.PI, false);
         ctx.fill();
     }
 
-    // 绘制简笔画独角兽
     function drawDoodleUnicorn(size, color) {
         ctx.strokeStyle = color || "#FFF";
         ctx.lineWidth = 1.5;
@@ -198,7 +211,6 @@
         ctx.fill();
     }
 
-    // 绘制简笔画小兔子
     function drawDoodleBunny(size) {
         ctx.strokeStyle = "#FFB3C6";
         ctx.lineWidth = 1.5;
@@ -224,7 +236,6 @@
 
     function drawBackground() {
         if (selectedMode === 'girl') {
-            // Girl 模式：粉粉梦幻糖果世界
             let bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
             bgGradient.addColorStop(0, "#FFD6E0");
             bgGradient.addColorStop(0.5, "#FFEF96");
@@ -232,7 +243,6 @@
             ctx.fillStyle = bgGradient;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // 背景波浪小山
             ctx.fillStyle = "rgba(255, 182, 193, 0.6)";
             ctx.beginPath();
             ctx.moveTo(0, playAreaHeight);
@@ -242,16 +252,6 @@
             ctx.lineTo(0, playAreaHeight);
             ctx.fill();
 
-            ctx.fillStyle = "rgba(255, 105, 180, 0.4)";
-            ctx.beginPath();
-            ctx.moveTo(0, playAreaHeight);
-            ctx.quadraticCurveTo(canvas.width * 0.3, playAreaHeight - 25, canvas.width * 0.7, playAreaHeight - 40);
-            ctx.quadraticCurveTo(canvas.width * 0.85, playAreaHeight - 15, canvas.width, playAreaHeight - 25);
-            ctx.lineTo(canvas.width, playAreaHeight);
-            ctx.lineTo(0, playAreaHeight);
-            ctx.fill();
-
-            // 绘制飘浮糖果/马卡龙
             for (let c of candies) {
                 c.x -= c.speed;
                 if (c.x < -40) c.x = canvas.width + 40;
@@ -259,26 +259,10 @@
 
                 ctx.save();
                 ctx.translate(c.x, floatY);
-
-                if (c.type === 'macaron') {
-                    drawMacaron(c.size, c.color);
-                } else if (c.type === 'lollipop') {
-                    ctx.strokeStyle = "#FFF";
-                    ctx.lineWidth = 2.5;
-                    ctx.beginPath();
-                    ctx.moveTo(0, 0);
-                    ctx.lineTo(0, c.size * 1.2);
-                    ctx.stroke();
-
-                    ctx.fillStyle = c.color;
-                    ctx.beginPath();
-                    ctx.arc(0, 0, c.size, 0, Math.PI * 2);
-                    ctx.fill();
-                } else if (c.type === 'bunny') {
-                    drawDoodleBunny(c.size);
-                } else if (c.type === 'unicorn') {
-                    drawDoodleUnicorn(c.size, c.color);
-                } else {
+                if (c.type === 'macaron') drawMacaron(c.size, c.color);
+                else if (c.type === 'bunny') drawDoodleBunny(c.size);
+                else if (c.type === 'unicorn') drawDoodleUnicorn(c.size, c.color);
+                else {
                     ctx.fillStyle = c.color;
                     ctx.beginPath();
                     ctx.ellipse(0, 0, c.size, c.size * 0.55, Math.PI / 4, 0, Math.PI * 2);
@@ -287,16 +271,13 @@
                 ctx.restore();
             }
 
-            // 绘制棉花糖云朵
             ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
             let cloudOffset = (frames * 0.2) % (canvas.width + 200);
             drawCloud(canvas.width - cloudOffset, playAreaHeight * 0.25, 1);
             drawCloud(canvas.width * 1.5 - cloudOffset, playAreaHeight * 0.15, 0.8);
 
         } else {
-            // Boy 模式：昼夜交替/夜间干干净净的星空弯月
             const isDay = isDaytime();
-
             if (isDay) {
                 ctx.fillStyle = "#70C5CE";
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -310,21 +291,11 @@
                 ctx.lineTo(0, playAreaHeight);
                 ctx.fill();
 
-                ctx.fillStyle = "#81C14B";
-                ctx.beginPath();
-                ctx.moveTo(0, playAreaHeight);
-                ctx.quadraticCurveTo(canvas.width * 0.3, playAreaHeight - 20, canvas.width * 0.7, playAreaHeight - 35);
-                ctx.quadraticCurveTo(canvas.width * 0.85, playAreaHeight - 10, canvas.width, playAreaHeight - 20);
-                ctx.lineTo(canvas.width, playAreaHeight);
-                ctx.lineTo(0, playAreaHeight);
-                ctx.fill();
-
                 ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
                 let cloudOffset = (frames * 0.2) % (canvas.width + 200);
                 drawCloud(canvas.width - cloudOffset, playAreaHeight * 0.25, 1);
                 drawCloud(canvas.width * 1.5 - cloudOffset, playAreaHeight * 0.15, 0.8);
             } else {
-                // 夜晚背景 -> 干净纯粹的弯月星空
                 let gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
                 gradient.addColorStop(0, "#0B132B");
                 gradient.addColorStop(0.6, "#1C2541");
@@ -332,46 +303,14 @@
                 ctx.fillStyle = gradient;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                // 弯月绘制 (Crescent Moon)
-                let moonX = canvas.width * 0.8;
-                let moonY = canvas.height * 0.18;
-                
-                ctx.save();
-                ctx.shadowColor = "#FFEAA7";
-                ctx.shadowBlur = 15;
-                ctx.fillStyle = "#FFEAA7";
-                ctx.beginPath();
-                ctx.arc(moonX, moonY, 26, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-
-                // 遮罩剪裁出优雅弯月效果
-                ctx.fillStyle = "#0B132B"; // 匹配天空顶端颜色
-                ctx.beginPath();
-                ctx.arc(moonX - 10, moonY - 6, 24, 0, Math.PI * 2);
-                ctx.fill();
-
-                // 闪烁繁星
                 for (let star of stars) {
                     star.alpha += star.speed;
-                    if (star.alpha > 1 || star.alpha < 0.2) {
-                        star.speed = -star.speed;
-                    }
+                    if (star.alpha > 1 || star.alpha < 0.2) star.speed = -star.speed;
                     ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0.1, star.alpha)})`;
                     ctx.beginPath();
                     ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
                     ctx.fill();
                 }
-
-                // 剪影山脊
-                ctx.fillStyle = "#090D16";
-                ctx.beginPath();
-                ctx.moveTo(0, playAreaHeight);
-                ctx.quadraticCurveTo(canvas.width * 0.3, playAreaHeight - 35, canvas.width * 0.65, playAreaHeight - 15);
-                ctx.quadraticCurveTo(canvas.width * 0.85, playAreaHeight - 40, canvas.width, playAreaHeight - 20);
-                ctx.lineTo(canvas.width, playAreaHeight);
-                ctx.lineTo(0, playAreaHeight);
-                ctx.fill();
             }
         }
     }
@@ -396,9 +335,7 @@
 
     const melody = [
         261.63, 329.63, 392.00, 523.25, 392.00, 329.63,
-        293.66, 349.23, 440.00, 587.33, 440.00, 349.23,
-        261.63, 329.63, 392.00, 523.25, 659.25, 523.25,
-        392.00, 349.23, 329.63, 293.66, 261.63, 196.00
+        293.66, 349.23, 440.00, 587.33, 440.00, 349.23
     ];
     let noteIndex = 0;
 
@@ -406,9 +343,7 @@
         if (!audioCtx) {
             try {
                 const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-                if (AudioCtxClass) {
-                    audioCtx = new AudioCtxClass();
-                }
+                if (AudioCtxClass) audioCtx = new AudioCtxClass();
             } catch(e) {}
         }
         if (audioCtx && audioCtx.state === 'suspended') {
@@ -421,16 +356,12 @@
         try {
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-
             osc.type = type;
             osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-
             gain.gain.setValueAtTime(volume, audioCtx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
-
             osc.connect(gain);
             gain.connect(audioCtx.destination);
-
             osc.start();
             osc.stop(audioCtx.currentTime + duration);
         } catch(e) {}
@@ -441,22 +372,22 @@
         setTimeout(() => playNote(659.25, 0.15, 'square', 0.08), 80);
     }
 
+    function playHurtSound() {
+        playNote(180, 0.2, 'sawtooth', 0.09);
+    }
+
     function playJumpSound() {
         if (isMuted || !audioCtx || audioCtx.state !== 'running') return;
         try {
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-
             osc.type = 'square';
             osc.frequency.setValueAtTime(150, audioCtx.currentTime);
             osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.1);
-
             gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
-
             osc.connect(gain);
             gain.connect(audioCtx.destination);
-
             osc.start();
             osc.stop(audioCtx.currentTime + 0.1);
         } catch(e) {}
@@ -465,9 +396,8 @@
     function startBGM() {
         initAudio();
         if (isMusicPlaying) return;
+        
         isMusicPlaying = true;
-        noteIndex = 0;
-
         musicInterval = setInterval(() => {
             if ((gameState === "PLAYING" || gameState === "START") && !isMuted) {
                 let freq = melody[noteIndex];
@@ -491,7 +421,7 @@
 
     function getCurrentSpeed() {
         let multiplier = Math.pow(1.02, score); 
-        return Math.min(baseSpeed * 3, baseSpeed * multiplier); 
+        return Math.min(baseSpeed * 2.5, baseSpeed * multiplier); 
     }
 
     function resizeCanvas() {
@@ -531,89 +461,53 @@
             let angle = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, this.velocity * 0.1));
             ctx.rotate(angle);
 
-            if (selectedMode === 'girl') {
-                ctx.fillStyle = "#FF85A1";
-                ctx.beginPath();
-                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = "#FFF";
-                ctx.stroke();
+            ctx.fillStyle = "#F8D030";
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "#000";
+            ctx.stroke();
 
-                ctx.fillStyle = "#FFF";
-                ctx.beginPath();
-                ctx.arc(6, -6, 7, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.stroke();
+            ctx.fillStyle = "#FFF";
+            ctx.beginPath();
+            ctx.arc(6, -6, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
 
-                ctx.fillStyle = "#4A4A4A";
-                ctx.beginPath();
-                ctx.arc(8, -6, 2.5, 0, Math.PI * 2);
-                ctx.fill();
+            ctx.fillStyle = "#000";
+            ctx.beginPath();
+            ctx.arc(8, -6, 2, 0, Math.PI * 2);
+            ctx.fill();
 
-                ctx.fillStyle = "#FFB3C6";
-                ctx.beginPath();
-                ctx.arc(8, 4, 8, 0, Math.PI);
-                ctx.fill();
-                ctx.stroke();
+            ctx.fillStyle = "#F05A24";
+            ctx.beginPath();
+            ctx.arc(8, 4, 8, 0, Math.PI);
+            ctx.fill();
+            ctx.stroke();
 
-                ctx.fillStyle = "#FFC2D1";
-                ctx.beginPath();
-                let wingY = Math.sin(frames * 0.3) * 3;
-                if (ctx.ellipse) {
-                    ctx.ellipse(-6, wingY, 7, 5, 0, 0, Math.PI * 2);
-                } else {
-                    ctx.arc(-6, wingY, 6, 0, Math.PI * 2);
-                }
-                ctx.fill();
-                ctx.stroke();
-
-                ctx.fillStyle = "#FF0A54";
-                ctx.beginPath();
-                ctx.arc(-4, -18, 4, 0, Math.PI * 2);
-                ctx.arc(4, -18, 4, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(0, -18, 2.5, 0, Math.PI * 2);
-                ctx.fillStyle = "#FFF";
-                ctx.fill();
-
+            ctx.fillStyle = "#E0C020";
+            ctx.beginPath();
+            let wingY = Math.sin(frames * 0.3) * 3;
+            if (ctx.ellipse) {
+                ctx.ellipse(-6, wingY, 7, 5, 0, 0, Math.PI * 2);
             } else {
-                ctx.fillStyle = "#F8D030";
-                ctx.beginPath();
-                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = "#000";
-                ctx.stroke();
+                ctx.arc(-6, wingY, 6, 0, Math.PI * 2);
+            }
+            ctx.fill();
+            ctx.stroke();
 
-                ctx.fillStyle = "#FFF";
+            if (selectedMode === 'chinese') {
+                ctx.fillStyle = "#D90429";
                 ctx.beginPath();
-                ctx.arc(6, -6, 6, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.stroke();
-
-                ctx.fillStyle = "#000";
-                ctx.beginPath();
-                ctx.arc(8, -6, 2, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.fillStyle = "#F05A24";
-                ctx.beginPath();
-                ctx.arc(8, 4, 8, 0, Math.PI);
+                ctx.arc(0, -this.radius + 3, 9, Math.PI, 0);
                 ctx.fill();
                 ctx.stroke();
 
-                ctx.fillStyle = "#E0C020";
+                ctx.fillStyle = "#FFD700";
                 ctx.beginPath();
-                let wingY = Math.sin(frames * 0.3) * 3;
-                if (ctx.ellipse) {
-                    ctx.ellipse(-6, wingY, 7, 5, 0, 0, Math.PI * 2);
-                } else {
-                    ctx.arc(-6, wingY, 6, 0, Math.PI * 2);
-                }
+                ctx.arc(0, -this.radius - 3, 3, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.stroke();
             }
 
             ctx.restore();
@@ -650,152 +544,131 @@
         }
     };
 
-    function drawSoftPipe(x, y, width, height, mainColor, accentColor, borderRadius = 12) {
-        if (height <= 0) return;
-        ctx.fillStyle = mainColor;
-        ctx.beginPath();
-        if (ctx.roundRect) {
-            ctx.roundRect(x, y, width, height, borderRadius);
-        } else {
-            ctx.rect(x, y, width, height);
-        }
-        ctx.fill();
-
-        ctx.fillStyle = accentColor;
-        ctx.beginPath();
-        if (ctx.roundRect) {
-            ctx.roundRect(x + 4, y, Math.max(2, width * 0.2), height, borderRadius / 2);
-        } else {
-            ctx.rect(x + 4, y, Math.max(2, width * 0.2), height);
-        }
-        ctx.fill();
-    }
-
-    const pipes = {
+    // 漂浮汉字生成与判定系统
+    const wordBubbles = {
         items: [],
-        baseGapPercent: 0.50, 
-        minGapPercent: 0.15,  
-        w: 60,                
+        spawnTimer: 0,
+        spawnInterval: 120,
+        hasAnsweredCurrentQuestion: false, // 防止同一题被重复判断
 
-        getCurrentGap() {
-            let currentGapPercent = this.baseGapPercent * Math.pow(0.995, score);
-            return canvas.height * Math.max(this.minGapPercent, currentGapPercent);
-        },
+        spawnGroup() {
+            const item = chineseSentences[currentSentenceIndex];
+            let chars = [ { text: item.answer, isCorrect: true } ];
+            let count = Math.random() < 0.5 ? 2 : 3;
+            let usedDistractors = [...item.distractors].sort(() => 0.5 - Math.random());
 
-        getDistanceBetweenPipes() {
-            return Math.min(190, Math.max(160, canvas.width * 0.25));
+            for (let i = 0; i < count - 1; i++) {
+                if (usedDistractors[i]) {
+                    chars.push({ text: usedDistractors[i], isCorrect: false });
+                }
+            }
+            chars.sort(() => 0.5 - Math.random());
+
+            let totalHeight = playAreaHeight - 180;
+            let segment = totalHeight / chars.length;
+
+            chars.forEach((c, index) => {
+                let posY = 120 + segment * index + Math.random() * (segment - 40);
+                this.items.push({
+                    x: canvas.width + 30 + Math.random() * 40,
+                    y: posY,
+                    radius: 26,
+                    text: c.text,
+                    isCorrect: c.isCorrect,
+                    floatOffset: Math.random() * Math.PI * 2
+                });
+            });
+
+            this.hasAnsweredCurrentQuestion = false; // 新题目生成，允许碰撞答题
         },
 
         draw() {
-            for (let p of this.items) {
-                if (selectedMode === 'girl') {
-                    let pipeMain = "#C8B6FF";
-                    let pipeAccent = "#E7C6FF";
-                    let capMain = "#FFB5A7";
+            for (let b of this.items) {
+                let waveY = b.y + Math.sin(frames * 0.05 + b.floatOffset) * 4;
 
-                    drawSoftPipe(p.x, 0, this.w, p.top, pipeMain, pipeAccent, 10);
-                    ctx.fillStyle = capMain;
-                    ctx.strokeStyle = "#FFF";
-                    ctx.lineWidth = 2.5;
-                    ctx.beginPath();
-                    if (ctx.roundRect) {
-                        ctx.roundRect(p.x - 5, p.top - 22, this.w + 10, 22, 10);
-                    } else {
-                        ctx.rect(p.x - 5, p.top - 22, this.w + 10, 22);
-                    }
-                    ctx.fill();
-                    ctx.stroke();
+                ctx.save();
+                ctx.translate(b.x, waveY);
 
-                    let bottomY = p.top + p.gap;
-                    let bottomHeight = playAreaHeight - bottomY;
-                    drawSoftPipe(p.x, bottomY, this.w, bottomHeight, pipeMain, pipeAccent, 10);
-                    ctx.fillStyle = capMain;
-                    ctx.beginPath();
-                    if (ctx.roundRect) {
-                        ctx.roundRect(p.x - 5, bottomY, this.w + 10, 22, 10);
-                    } else {
-                        ctx.rect(p.x - 5, bottomY, this.w + 10, 22);
-                    }
-                    ctx.fill();
-                    ctx.stroke();
+                ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+                ctx.shadowColor = "rgba(0, 0, 0, 0.15)";
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                ctx.arc(0, 0, b.radius, 0, Math.PI * 2);
+                ctx.fill();
 
-                } else {
-                    ctx.fillStyle = "#73BF2E";
-                    ctx.fillRect(p.x, 0, this.w, p.top);
-                    ctx.strokeStyle = "#000";
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(p.x, 0, this.w, p.top);
+                ctx.lineWidth = 2.5;
+                ctx.strokeStyle = "#E63946";
+                ctx.stroke();
 
-                    ctx.fillRect(p.x - 4, p.top - 20, this.w + 8, 20);
-                    ctx.strokeRect(p.x - 4, p.top - 20, this.w + 8, 20);
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = "#2B2D42";
+                ctx.font = "bold 22px 'PingFang SC', 'Microsoft YaHei', sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(b.text, 0, 2);
 
-                    let bottomY = p.top + p.gap;
-                    let bottomHeight = playAreaHeight - bottomY;
-                    ctx.fillRect(p.x, bottomY, this.w, bottomHeight);
-                    ctx.strokeRect(p.x, bottomY, this.w, bottomHeight);
-
-                    ctx.fillRect(p.x - 4, bottomY, this.w + 8, 20);
-                    ctx.strokeRect(p.x - 4, bottomY, this.w + 8, 20);
-                }
+                ctx.restore();
             }
         },
 
         update() {
             if (gameState !== "PLAYING") return;
 
-            let currentSpeed = getCurrentSpeed(); 
-            let distance = this.getDistanceBetweenPipes();
-            let lastPipe = this.items[this.items.length - 1];
-
-            if (!lastPipe || (canvas.width - lastPipe.x >= distance)) {
-                let currentGap = this.getCurrentGap();
-                let absoluteMinTop = playAreaHeight * 0.1;
-                let absoluteMaxTop = playAreaHeight - currentGap - playAreaHeight * 0.1;
-
-                let top;
-                if (!lastPipe) {
-                    top = Math.floor(Math.random() * (absoluteMaxTop - absoluteMinTop + 1)) + absoluteMinTop;
-                } else {
-                    let overlapRequired = currentGap * 0.15; 
-                    let minAllowedTop = lastPipe.top - currentGap + overlapRequired;
-                    let maxAllowedTop = lastPipe.top + lastPipe.gap - overlapRequired;
-
-                    let finalMinTop = Math.max(absoluteMinTop, minAllowedTop);
-                    let finalMaxTop = Math.min(absoluteMaxTop, maxAllowedTop);
-
-                    if (finalMinTop <= finalMaxTop) {
-                        top = Math.floor(Math.random() * (finalMaxTop - finalMinTop + 1)) + finalMinTop;
-                    } else {
-                        top = Math.floor(Math.random() * (absoluteMaxTop - absoluteMinTop + 1)) + absoluteMinTop;
-                    }
-                }
-                
-                this.items.push({ x: canvas.width, top: top, gap: currentGap, passed: false });
+            this.spawnTimer++;
+            if (this.spawnTimer >= this.spawnInterval) {
+                this.spawnTimer = 0;
+                this.spawnGroup();
             }
 
-            for (let i = 0; i < this.items.length; i++) {
-                let p = this.items[i];
-                p.x -= currentSpeed; 
+            let currentSpeed = getCurrentSpeed();
 
-                if (!p.passed && bird.x > p.x + this.w) {
-                    score++;
-                    p.passed = true;
-                    playScoreSound();
-                    if (score > bestScore) {
-                        bestScore = score;
-                        setSafeBestScore(bestScore);
+            for (let i = 0; i < this.items.length; i++) {
+                let b = this.items[i];
+                b.x -= currentSpeed;
+
+                // 碰撞检测
+                let dist = Math.hypot(bird.x - b.x, bird.y - b.y);
+                if (dist < bird.hitRadius + b.radius) {
+                    if (b.isCorrect) {
+                        // 防止一题多撞
+                        if (!this.hasAnsweredCurrentQuestion) {
+                            this.hasAnsweredCurrentQuestion = true;
+                            score++;
+                            streak++; // 连对数 +1
+                            
+                            if (score > bestScore) {
+                                bestScore = score;
+                                setSafeBestScore(bestScore);
+                            }
+                            
+                            // 严格要求：只有连续答对 3 道题才加 1 格血
+                            if (streak >= 3) {
+                                if (hp < maxHp) {
+                                    hp++;
+                                }
+                                streak = 0; // 满3次回血后重置连对数，重新计算下一次3连对
+                            }
+
+                            playScoreSound();
+                            loadNextSentence();
+                            this.items = []; // 撞对后清空当前所有字
+                            break;
+                        }
+                    } else {
+                        // 撞错字：直接扣血，并将连对数归零
+                        hp--;
+                        streak = 0; 
+                        playHurtSound();
+                        this.items.splice(i, 1);
+                        i--;
+                        if (hp <= 0) {
+                            gameOver();
+                        }
+                        continue;
                     }
                 }
 
-                if (
-                    bird.x + bird.hitRadius > p.x && 
-                    bird.x - bird.hitRadius < p.x + this.w && 
-                    (bird.y - bird.hitRadius < p.top || bird.y + bird.hitRadius > p.top + p.gap)
-                ) {
-                    gameOver();
-                }
-
-                if (p.x + this.w < 0) {
+                if (b.x + b.radius < 0) {
                     this.items.splice(i, 1);
                     i--;
                 }
@@ -804,46 +677,24 @@
 
         reset() {
             this.items = [];
+            this.spawnTimer = 0;
+            this.hasAnsweredCurrentQuestion = false;
         }
     };
 
     const fg = {
         x: 0,
         draw() {
-            if (selectedMode === 'girl') {
-                ctx.fillStyle = "#FFCAD4";
-                ctx.fillRect(0, playAreaHeight, canvas.width, groundHeight);
-
-                ctx.fillStyle = "#FFF";
-                ctx.fillRect(0, playAreaHeight, canvas.width, 14);
-
-                ctx.fillStyle = "#FF4D6D";
-                let dotOffset = this.x % 20;
-                for (let dx = dotOffset; dx < canvas.width + 20; dx += 20) {
-                    ctx.beginPath();
-                    ctx.arc(dx, playAreaHeight + 25, 4, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-
-                ctx.strokeStyle = "#FF85A1";
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(0, playAreaHeight);
-                ctx.lineTo(canvas.width, playAreaHeight);
-                ctx.stroke();
-
-            } else {
-                ctx.fillStyle = "#DDD894";
-                ctx.fillRect(0, playAreaHeight, canvas.width, groundHeight);
-                ctx.fillStyle = "#73BF2E";
-                ctx.fillRect(0, playAreaHeight, canvas.width, 14);
-                ctx.strokeStyle = "#000";
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(0, playAreaHeight);
-                ctx.lineTo(canvas.width, playAreaHeight);
-                ctx.stroke();
-            }
+            ctx.fillStyle = "#DDD894";
+            ctx.fillRect(0, playAreaHeight, canvas.width, groundHeight);
+            ctx.fillStyle = "#73BF2E";
+            ctx.fillRect(0, playAreaHeight, canvas.width, 14);
+            ctx.strokeStyle = "#000";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, playAreaHeight);
+            ctx.lineTo(canvas.width, playAreaHeight);
+            ctx.stroke();
         },
         update() {
             if (gameState === "PLAYING") {
@@ -861,17 +712,22 @@
 
     function resetGame() {
         bird.reset();
-        pipes.reset();
+        wordBubbles.reset();
         score = 0;
+        hp = maxHp;
+        streak = 0; 
         frames = 0;
+        loadNextSentence();
         gameState = "PLAYING";
         startBGM();
     }
 
     function goToHome() {
         bird.reset();
-        pipes.reset();
+        wordBubbles.reset();
         score = 0;
+        hp = maxHp;
+        streak = 0; 
         frames = 0;
         selectedMode = null;
         gameState = "SELECT";
@@ -880,6 +736,8 @@
 
     let btnBoyRect = { x: 0, y: 0, w: 0, h: 0 };
     let btnGirlRect = { x: 0, y: 0, w: 0, h: 0 };
+    let btnChineseRect = { x: 0, y: 0, w: 0, h: 0 };
+    let btnMathRect = { x: 0, y: 0, w: 0, h: 0 };
     let btnPlayAgainRect = { x: 0, y: 0, w: 0, h: 0 };
     let btnHomeRect = { x: 0, y: 0, w: 0, h: 0 };
 
@@ -909,80 +767,130 @@
         ctx.restore();
     }
 
+    // 绘制顶部句子题目与血条（增加连对提示小标记）
+    function drawHeaderSentenceAndHP() {
+        let centerX = canvas.width / 2;
+
+        // 1. 绘制句子背景框
+        ctx.save();
+        ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+        ctx.strokeStyle = "#D90429";
+        ctx.lineWidth = 3;
+        let boxWidth = Math.min( canvas.width * 0.85, 320 );
+        let boxHeight = 44;
+        let boxX = centerX - boxWidth / 2;
+        let boxY = 15;
+
+        if (ctx.roundRect) {
+            ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 12);
+        } else {
+            ctx.rect(boxX, boxY, boxWidth, boxHeight);
+        }
+        ctx.fill();
+        ctx.stroke();
+
+        // 2. 绘制题目文字
+        ctx.fillStyle = "#1D3557";
+        ctx.font = "bold 20px 'PingFang SC', 'Microsoft YaHei', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(currentDisplayPrompt, centerX, boxY + boxHeight / 2);
+        ctx.restore();
+
+        // 3. 绘制红心血条与连对进度提示
+        ctx.save();
+        let heartsText = "❤️".repeat(hp) + "🖤".repeat(maxHp - hp);
+        ctx.font = "18px sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText(heartsText, 15, 80);
+
+        // 连对进度小提示 (🔥 x1 / 🔥 x2)
+        if (streak > 0) {
+            ctx.fillStyle = "#FF4500";
+            ctx.font = "bold 14px 'PingFang SC', sans-serif";
+            ctx.fillText(`连对: ${streak}/3 🔥`, 15, 102);
+        }
+
+        ctx.fillStyle = "#FFF";
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 2;
+        ctx.font = "bold 20px 'Courier New', monospace";
+        ctx.textAlign = "right";
+        ctx.strokeText(`得分: ${score}`, canvas.width - 15, 80);
+        ctx.fillText(`得分: ${score}`, canvas.width - 15, 80);
+        ctx.restore();
+    }
+
     function drawUI() {
         let centerX = canvas.width / 2;
 
-        // 绘制全局静音按钮
-        drawMuteButton();
+        if (gameState !== "PLAYING") {
+            drawMuteButton();
+        }
 
         if (gameState === "SELECT") {
             ctx.fillStyle = "#FFF";
             ctx.strokeStyle = "#000";
             ctx.lineWidth = 3;
 
-            ctx.font = "bold 28px Courier New";
+            ctx.font = "bold 26px Courier New";
             ctx.textAlign = "center";
-            ctx.strokeText("SELECT CHARACTER", centerX, canvas.height * 0.22);
-            ctx.fillText("SELECT CHARACTER", centerX, canvas.height * 0.22);
+            ctx.strokeText("SELECT CHARACTER", centerX, canvas.height * 0.18);
+            ctx.fillText("SELECT CHARACTER", centerX, canvas.height * 0.18);
 
-            let btnWidth = Math.min(220, canvas.width * 0.65);
-            let btnHeight = 55;
+            let btnWidth = Math.min(230, canvas.width * 0.68);
+            let btnHeight = 48;
 
-            btnBoyRect = {
-                x: centerX - btnWidth / 2,
-                y: canvas.height * 0.38,
-                w: btnWidth,
-                h: btnHeight
-            };
+            btnBoyRect = { x: centerX - btnWidth / 2, y: canvas.height * 0.28, w: btnWidth, h: btnHeight };
             ctx.fillStyle = "#4EA8DE";
             ctx.fillRect(btnBoyRect.x, btnBoyRect.y, btnBoyRect.w, btnBoyRect.h);
             ctx.strokeStyle = "#FFF";
             ctx.lineWidth = 3;
             ctx.strokeRect(btnBoyRect.x, btnBoyRect.y, btnBoyRect.w, btnBoyRect.h);
-
             ctx.fillStyle = "#FFF";
-            ctx.font = "bold 20px Courier New";
-            ctx.fillText("BOY MODE 👦", centerX, btnBoyRect.y + 35);
+            ctx.font = "bold 18px Courier New";
+            ctx.fillText("BOY MODE 👦", centerX, btnBoyRect.y + 30);
 
-            btnGirlRect = {
-                x: centerX - btnWidth / 2,
-                y: canvas.height * 0.54,
-                w: btnWidth,
-                h: btnHeight
-            };
+            btnGirlRect = { x: centerX - btnWidth / 2, y: canvas.height * 0.40, w: btnWidth, h: btnHeight };
             ctx.fillStyle = "#FF85A1";
             ctx.fillRect(btnGirlRect.x, btnGirlRect.y, btnGirlRect.w, btnGirlRect.h);
             ctx.strokeStyle = "#FFF";
-            ctx.lineWidth = 3;
             ctx.strokeRect(btnGirlRect.x, btnGirlRect.y, btnGirlRect.w, btnGirlRect.h);
-
             ctx.fillStyle = "#FFF";
-            ctx.font = "bold 20px Courier New";
-            ctx.fillText("GIRL MODE 👧", centerX, btnGirlRect.y + 35);
+            ctx.fillText("GIRL MODE 👧", centerX, btnGirlRect.y + 30);
+
+            btnChineseRect = { x: centerX - btnWidth / 2, y: canvas.height * 0.52, w: btnWidth, h: btnHeight };
+            ctx.fillStyle = "#E63946";
+            ctx.fillRect(btnChineseRect.x, btnChineseRect.y, btnChineseRect.w, btnChineseRect.h);
+            ctx.strokeStyle = "#FFF";
+            ctx.strokeRect(btnChineseRect.x, btnChineseRect.y, btnChineseRect.w, btnChineseRect.h);
+            ctx.fillStyle = "#FFF";
+            ctx.fillText("CHINESE MODE 🧧", centerX, btnChineseRect.y + 30);
+
+            btnMathRect = { x: centerX - btnWidth / 2, y: canvas.height * 0.64, w: btnWidth, h: btnHeight };
+            ctx.fillStyle = "#2A9D8F";
+            ctx.fillRect(btnMathRect.x, btnMathRect.y, btnMathRect.w, btnMathRect.h);
+            ctx.strokeStyle = "#FFF";
+            ctx.strokeRect(btnMathRect.x, btnMathRect.y, btnMathRect.w, btnMathRect.h);
+            ctx.fillStyle = "#FFF";
+            ctx.fillText("MATH MODE 📐", centerX, btnMathRect.y + 30);
 
         } else if (gameState === "START") {
             ctx.fillStyle = "#FFF";
             ctx.strokeStyle = "#000";
             ctx.lineWidth = 3;
 
-            ctx.font = "bold 32px Courier New";
+            ctx.font = "bold 32px 'PingFang SC', sans-serif";
             ctx.textAlign = "center";
-            ctx.strokeText("Flappy Bird", centerX, canvas.height * 0.3);
-            ctx.fillText("Flappy Bird", centerX, canvas.height * 0.3);
+            ctx.strokeText("中文填空模式", centerX, canvas.height * 0.3);
+            ctx.fillText("中文填空模式", centerX, canvas.height * 0.3);
 
-            ctx.font = "18px Courier New";
-            ctx.strokeText("HOLD TO FLY", centerX, canvas.height * 0.6);
-            ctx.fillText("HOLD TO FLY", centerX, canvas.height * 0.6);
+            ctx.font = "18px 'PingFang SC', sans-serif";
+            ctx.strokeText("长按/点击飞行，撞击正确的字！", centerX, canvas.height * 0.6);
+            ctx.fillText("长按/点击飞行，撞击正确的字！", centerX, canvas.height * 0.6);
 
         } else if (gameState === "PLAYING") {
-            ctx.fillStyle = "#FFF";
-            ctx.strokeStyle = "#000";
-            ctx.lineWidth = 3;
-
-            ctx.font = "bold 46px Courier New";
-            ctx.textAlign = "center";
-            ctx.strokeText(score, centerX, 80);
-            ctx.fillText(score, centerX, 80);
+            drawHeaderSentenceAndHP();
 
         } else if (gameState === "GAMEOVER") {
             ctx.fillStyle = "#FFF";
@@ -1005,34 +913,22 @@
             let btnWidth = Math.min(220, canvas.width * 0.65);
             let btnHeight = 50;
 
-            btnPlayAgainRect = {
-                x: centerX - btnWidth / 2,
-                y: canvas.height * 0.52,
-                w: btnWidth,
-                h: btnHeight
-            };
+            btnPlayAgainRect = { x: centerX - btnWidth / 2, y: canvas.height * 0.52, w: btnWidth, h: btnHeight };
             ctx.fillStyle = "#73BF2E";
             ctx.fillRect(btnPlayAgainRect.x, btnPlayAgainRect.y, btnPlayAgainRect.w, btnPlayAgainRect.h);
             ctx.strokeStyle = "#FFF";
             ctx.lineWidth = 3;
             ctx.strokeRect(btnPlayAgainRect.x, btnPlayAgainRect.y, btnPlayAgainRect.w, btnPlayAgainRect.h);
-
             ctx.fillStyle = "#FFF";
             ctx.font = "bold 20px Courier New";
             ctx.fillText("PLAY AGAIN", centerX, btnPlayAgainRect.y + 32);
 
-            btnHomeRect = {
-                x: centerX - btnWidth / 2,
-                y: canvas.height * 0.64,
-                w: btnWidth,
-                h: btnHeight
-            };
+            btnHomeRect = { x: centerX - btnWidth / 2, y: canvas.height * 0.64, w: btnWidth, h: btnHeight };
             ctx.fillStyle = "#E76F51";
             ctx.fillRect(btnHomeRect.x, btnHomeRect.y, btnHomeRect.w, btnHomeRect.h);
             ctx.strokeStyle = "#FFF";
             ctx.lineWidth = 3;
             ctx.strokeRect(btnHomeRect.x, btnHomeRect.y, btnHomeRect.w, btnHomeRect.h);
-
             ctx.fillStyle = "#FFF";
             ctx.font = "bold 20px Courier New";
             ctx.fillText("HOME / SELECT", centerX, btnHomeRect.y + 32);
@@ -1044,8 +940,8 @@
 
         drawBackground();
 
-        pipes.update();
-        pipes.draw();
+        wordBubbles.update();
+        wordBubbles.draw();
 
         fg.update();
         fg.draw();
@@ -1072,21 +968,24 @@
         const clickY = clientY - rect.top;
 
         if (
-            clickX >= btnBoyRect.x && clickX <= btnBoyRect.x + btnBoyRect.w &&
-            clickY >= btnBoyRect.y && clickY <= btnBoyRect.y + btnBoyRect.h
+            clickX >= btnChineseRect.x && clickX <= btnChineseRect.x + btnChineseRect.w &&
+            clickY >= btnChineseRect.y && clickY <= btnChineseRect.y + btnChineseRect.h
         ) {
-            selectedMode = 'boy';
+            selectedMode = 'chinese';
             gameState = "START";
+            loadNextSentence();
             startBGM();
             return true;
         }
 
         if (
-            clickX >= btnGirlRect.x && clickX <= btnGirlRect.x + btnGirlRect.w &&
-            clickY >= btnGirlRect.y && clickY <= btnGirlRect.y + btnGirlRect.h
+            (clickX >= btnBoyRect.x && clickX <= btnBoyRect.x + btnBoyRect.w && clickY >= btnBoyRect.y && clickY <= btnBoyRect.y + btnBoyRect.h) ||
+            (clickX >= btnGirlRect.x && clickX <= btnGirlRect.x + btnGirlRect.w && clickY >= btnGirlRect.y && clickY <= btnGirlRect.y + btnGirlRect.h) ||
+            (clickX >= btnMathRect.x && clickX <= btnMathRect.x + btnMathRect.w && clickY >= btnMathRect.y && clickY <= btnMathRect.y + btnMathRect.h)
         ) {
-            selectedMode = 'girl';
+            selectedMode = 'chinese';
             gameState = "START";
+            loadNextSentence();
             startBGM();
             return true;
         }
@@ -1133,7 +1032,6 @@
             const clickX = clientX - rect.left;
             const clickY = clientY - rect.top;
 
-            // 静音按钮判定
             if (isMuteButtonClicked(clickX, clickY)) {
                 isMuted = !isMuted;
                 return;
@@ -1173,8 +1071,9 @@
         if (e.code === "Space" || e.code === "ArrowUp") {
             e.preventDefault();
             if (gameState === "SELECT") {
-                selectedMode = 'boy';
+                selectedMode = 'chinese';
                 gameState = "START";
+                loadNextSentence();
                 startBGM();
             } else if (gameState === "GAMEOVER") {
                 resetGame();
@@ -1182,7 +1081,6 @@
                 startAction(e);
             }
         } else if (e.code === "KeyM") {
-            // 支持键盘按 M 键快速开启/关闭静音
             isMuted = !isMuted;
         }
     });
